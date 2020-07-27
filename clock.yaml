@@ -1,0 +1,441 @@
+esphome:
+  name: bigclock
+  platform: ESP8266
+  board: d1
+  on_boot:
+    - priority: 600.0
+      then:
+      - light.turn_on:
+          id: bigclock
+          brightness: 50%
+          effect: "Clock Startup"
+    - priority: -100.0
+      then:
+      - script.execute: modescript
+
+wifi:
+
+  networks: 
+    - ssid: !secret wifi
+      password: !secret wifi_password
+    - ssid: !secret wifi2
+      password: !secret wifi_password2
+
+  manual_ip:
+    static_ip: 192.168.0.102
+    gateway: 192.168.0.1
+    subnet: 255.255.255.0
+    dns1: 192.168.0.1
+    dns2: 8.8.8.8
+
+# Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "BigClock Fallback Hotspot"
+    password: !secret wifi_password
+
+#captive_portal:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: !secret api_password
+
+ota:
+  password: !secret ota_password
+
+globals:
+  - id: displaynumber
+    type: bool[231]
+    restore_value: no
+    initial_value: "{1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1,
+    0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+    0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}"
+
+  - id: displaytext
+    type: bool[168]
+    restore_value: no
+    initial_value: "{1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+    1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 
+    1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+    0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1}"
+
+  - id: thetime
+    type: int[4]
+    restore_value: no
+    initial_value: '{5, 5, 2, 2}'
+    
+  - id: secondz
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  - id: theword
+    type: int[4]
+    restore_value: no
+    initial_value: '{4, 5, 6, 7}'
+
+  - id: red
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: green
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: blue
+    type: int
+    restore_value: no
+    initial_value: '255'
+
+  - id: mode
+    type: int
+    restore_value: yes
+#    initial_value: '0'
+
+time:
+  - platform: homeassistant
+    id: hass_time
+    on_time:
+    # Every Second      
+      - seconds: /1
+        then:
+          - lambda: |-
+              id(red) = (id(bigclock).remote_values.get_red()*255);
+              id(green) = (id(bigclock).remote_values.get_green()*255);
+              id(blue) = (id(bigclock).remote_values.get_blue()*255);
+              if (id(secondz) == 0) {
+                id(secondz) = 1;
+              } else {
+                id(secondz) = 0;
+              }
+          - script.execute: gettime
+    # Every Hour
+#      - minutes: 0
+#        seconds: 0
+#        then:
+#        - light.turn_on:
+#            id: bigclock
+#            effect: "Display Clock Shit"
+#        - delay: 1000ms
+#        - light.turn_on:
+#            id: bigclock
+#            effect: "Display Clock Random"
+
+script:
+  - id: gettime
+    then:
+      - lambda: |-
+          auto time = id(hass_time).now();
+          id(thetime)[0] = (time.hour /10);
+          id(thetime)[1] = (time.hour %10);
+          id(thetime)[2] = (time.minute /10);
+          id(thetime)[3] = (time.minute %10);
+
+  - id: modescript
+    then:
+      - if:
+          condition:
+            lambda: 'return id(mode) == 0;'
+          then:
+            - light.turn_on:
+                id: bigclock
+                effect: "Display Clock"
+      - if:
+          condition:
+            lambda: 'return id(mode) == 1;'
+          then:
+            - light.turn_on:
+                id: bigclock
+                effect: "Display Clock Random"
+      - if:
+          condition:
+            lambda: 'return id(mode) == 2;'
+          then:
+            - light.turn_on:
+                id: bigclock
+                effect: "Display Clock Random Digits"
+      - if:
+          condition:
+            lambda: 'return id(mode) == 3;'
+          then:
+            - light.turn_on:
+                id: bigclock
+                effect: "Display Clock 4 Colours"
+
+switch:
+  - platform: restart
+    name: "BigClock Restart"
+
+# Example configuration entry
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: D4
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "Button1"
+    internal: true
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - light.turn_on:
+            id: bigclock
+            effect: "RandomCol"
+    on_release:
+      then:
+        - light.turn_on:
+            id: bigclock
+            effect: "Display Clock"
+        - lambda: 'id(mode) = 0;'
+  - platform: gpio
+    pin:
+      number: D9
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "Button2"
+    internal: true
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      - if:
+          condition:
+            light.is_off: sidelights
+          then:
+            - light.turn_on:
+                id: sidelights
+                effect: "Random"
+          else:
+            - light.turn_off:
+                id: sidelights
+  - platform: gpio
+    pin:
+      number: D1
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "Button3"
+    internal: true
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - script.execute: modescript
+    on_release:
+      then:
+        - lambda: |-
+            id(mode) = id(mode) +1;
+            if(id(mode) == 4) id(mode) = 0;
+
+light:
+  - platform: fastled_clockless
+    chipset : WS2812B
+    rgb_order: GRB
+    pin: GPIO5
+    num_leds: 6
+    name: "SideLights"
+    id: sidelights
+#    internal: True
+    effects:
+      - random:
+      - random:
+          name: Quick Random
+          transition_length: 4s
+          update_interval: 4s
+      - addressable_lambda:
+          name: "Breathe"
+          update_interval: 50ms
+          lambda: |-
+            it.all() = ESPColor(id(red), id(green), id(blue));
+            for (int i = 0; i > 25; i++) {
+              it.all().fade_to_black(10);
+            }
+  
+  - platform: partition
+    name: "RightLight"
+    id: right
+    segments:
+      - id: sidelights
+        from: 0
+        to: 2
+    effects:
+      - random:
+      - strobe:
+      - flicker:
+      - strobe:
+          name: Flash
+          colors:
+            - state: True
+              duration: 500ms
+            - state: False
+              duration: 500ms
+
+  - platform: partition
+    name: "LeftLight"
+    id: left
+    segments:
+      - id: sidelights
+        from: 3
+        to: 5
+    effects:
+      - random:
+      - strobe:
+      - flicker:
+      - strobe:
+          name: Flash
+          colors:
+            - state: True
+              duration: 500ms
+            - state: False
+              duration: 500ms
+
+  - platform: fastled_clockless 
+    chipset : WS2812B
+    rgb_order: GRB
+    pin: GPIO3
+    num_leds: 86
+    name: "BigClock"
+    id: bigclock
+    effects:
+      - random:
+          name: "RandomCol"
+          transition_length: 0s
+          update_interval: 500ms
+      - addressable_lambda:
+          name: "Display Clock"
+          update_interval: 250ms
+          lambda: |-
+            int abc = 0;
+            for (int j = 0; j < 4; j++) {
+            int k = id(thetime)[3-j];
+              for (int i = k*21; i < k*21+21; i++) {
+                if (id(displaynumber)[i]) {
+                  it[abc] = ESPColor(id(red), id(green), id(blue));
+                } else {
+                  it[abc] = ESPColor(0, 0, 0);
+                }
+                abc++;
+              }
+            }
+            if (id(secondz) == 1) {
+              it[84] = ESPColor(id(red), id(green), id(blue));
+              it[85] = ESPColor(id(red), id(green), id(blue));
+            } else {
+              it[84] = ESPColor(0, 0, 0);
+              it[85] = ESPColor(0, 0, 0);
+            }
+      - addressable_lambda:
+          name: "Display Clock Random"
+          update_interval: 250ms
+          lambda: |-
+            int abc = 0;
+            for (int j = 0; j < 4; j++) {
+            int k = id(thetime)[3-j];
+              for (int i = k*21; i < k*21+21; i++) {
+                if (id(displaynumber)[i]) {
+                  it[abc] = ESPColor::random_color();
+                } else {
+                  it[abc] = ESPColor(0, 0, 0);
+                }
+                abc++;
+              }
+            }
+            if (id(secondz) == 1) {
+              it[84] = ESPColor::random_color();
+              it[85] = ESPColor::random_color();
+            } else {
+              it[84] = ESPColor(0, 0, 0);
+              it[85] = ESPColor(0, 0, 0);
+            }
+      - addressable_lambda:
+          name: "Display Clock 4 Colours"
+          update_interval: 1000ms
+          lambda: |-
+            int abc = 0;
+            for (int j = 0; j < 4; j++) {
+            it[84] = ESPColor::random_color();
+            int k = id(thetime)[3-j];
+              for (int i = k*21; i < k*21+21; i++) {
+                if (id(displaynumber)[i]) {
+                  it[abc] = it[84].get();
+                } else {
+                  it[abc] = ESPColor(0, 0, 0);
+                }
+                abc++;
+              }
+            }
+            if (id(secondz) == 1) {
+              it[84] = ESPColor::random_color();
+              it[85] = it[84].get();
+            } else {
+              it[84] = ESPColor(0, 0, 0);
+              it[85] = ESPColor(0, 0, 0);
+            }
+      - addressable_lambda:
+          name: "Display Clock Random Digits"
+          update_interval: 1000ms
+          lambda: |-
+            int abc = 0;
+            for (int j = 0; j < 4; j++) {
+            int k = id(thetime)[3-j];
+              for (int i = k*21; i < k*21+21; i+= 3) {
+                if (id(displaynumber)[i]) {
+                  it[abc] = ESPColor::random_color();
+                  it[abc+1] = it[abc].get();
+                  it[abc+2] = it[abc].get();
+                } else {
+                  it[abc] = ESPColor(0, 0, 0);
+                  it[abc+1] = ESPColor(0, 0, 0);
+                  it[abc+2] = ESPColor(0, 0, 0);
+                }
+                abc+= 3;
+              }
+            }
+            if (id(secondz) == 1) {
+              it[84] = ESPColor::random_color();
+              it[85] = it[84].get();
+            } else {
+              it[84] = ESPColor(0, 0, 0);
+              it[85] = ESPColor(0, 0, 0);
+            }
+      - addressable_lambda:
+          name: "Display Clock Shit"
+          update_interval: 250ms
+          lambda: |-
+            int abc = 0;
+            for (int j = 0; j < 4; j++) {
+            int k = id(theword)[3-j];
+              for (int i = k*21; i < k*21+21; i++) {
+                if (id(displaytext)[i]) {
+                  it[abc] = ESPColor::random_color();
+                } else {
+                  it[abc] = ESPColor(0, 0, 0);
+                }
+                abc++;
+              }
+            }
+            it[84] = ESPColor(0, 0, 0);
+            it[85] = ESPColor(0, 0, 0);
+
+      - addressable_lambda:
+          name: "Clock Startup"
+          update_interval: 50ms
+          lambda: |-
+            for (int i = it.size() - 1; i > 0; i--) {
+              it[i] = it[i - 1].get();
+            }
+            it[0] = ESPColor::random_color();
+  
